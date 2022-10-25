@@ -7,7 +7,10 @@ public class UserData {
     public String userCode;
     public String jti;
 
-    public UserData(String userCode, String jti) {
+    public UserData() {
+    }
+
+    public UserData(String userCode, String jti){
         this.userCode = userCode;
         this.jti = jti;
     }

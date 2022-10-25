@@ -17,7 +17,6 @@ public class UserResourceTest {
     @Test
     public void testGenerateData() {
         System.out.println("testGenerateData");
-        KafkaDataGeneratorTest.produceUsers();
     }
 
 }

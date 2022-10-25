@@ -1,2 +1,2 @@
 #!/bin/bash
-./mvnw clean  quarkus:dev -Ddebug=5580 -Dquarkus.http.port=10090 -DskipTests=true
+./mvnw clean  quarkus:dev -Ddebug=5581 -Dquarkus.http.port=10091 -DskipTests=true
