@@ -28,7 +28,6 @@ public class Event {
         JsonObject jsonPayload = new JsonObject(payload);
         String jti = jsonPayload.getString("jti");
 
-        LOGGER.info("jti:" + jti);
         return jti;
     }
 
@@ -40,7 +39,6 @@ public class Event {
         String[] deconstructBySlash = iss.split("/");
         String realm = deconstructBySlash[deconstructBySlash.length - 1];
 
-        LOGGER.info("realm:" + realm);
         return realm;
     }
 }

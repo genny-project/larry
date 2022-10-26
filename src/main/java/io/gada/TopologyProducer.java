@@ -10,7 +10,6 @@ import io.gada.message.UserData;
 //import life.genny.qwandaq.utils.CacheUtils;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.Topology;
@@ -29,14 +28,20 @@ public class TopologyProducer {
     private static final String TABLE_USER = "users";
     private static final String TOPIC_EVENTS = "events";
     private static final String TOPIC_DATA = "data";
+    private static final String TOPIC_OUTPUT = "users_agg";
+    private static final int WINDOWS_SECONDS = 10;
 
     @Produces
     public Topology getTopologyUser() {
 
         final StreamsBuilder builder = new StreamsBuilder();
+        Serde<String> stringSerde = Serdes.String();
+        Serde<Long> longSerde = Serdes.Long();
 
         final ObjectMapperSerde<Event> eventSerder = new ObjectMapperSerde<>(Event.class);
         final ObjectMapperSerde<UserData> userSerder = new ObjectMapperSerde<>(UserData.class);
+        final ObjectMapperSerde<UserJtiAccessed> accessedSerder = new ObjectMapperSerde<>(UserJtiAccessed.class);
+        final ObjectMapperSerde<UserDataAgg> aggSerder = new ObjectMapperSerde<>(UserDataAgg.class);
 
         final GlobalKTable<String, UserData> userTable = builder.globalTable(TABLE_USER,
                                                                     Consumed.with(Serdes.String(), userSerder));
@@ -44,28 +49,34 @@ public class TopologyProducer {
         final KStream<String, Event> userEvents = builder.stream(TOPIC_EVENTS,
                                                                     Consumed.with(Serdes.String(), eventSerder));
 
-        log.info("==================getTopologyUser()-Begin==================");
-        final KStream<String, UserJtiAccessed> sourceEvents = userEvents
-                .map((k, v) -> KeyValue.pair(v.data.sourceCode,new UserJtiAccessed(k,v.getJtiByToken(),v.getRealm())))
+        final KStream<UserJtiAccessed, UserJtiAccessed> sourceEvents = userEvents
+                .map((k, v) -> KeyValue.pair(new UserJtiAccessed(k,v.getJtiByToken(),v.getRealm()),new UserJtiAccessed(k,v.getJtiByToken(),v.getRealm())))
                 .filter((k, v)-> k != null);
 
-//        final KStream<String,UserJtiAccessed> parsedEvents  = sourceEvents.map((k,v) ->
-//                                KeyValue.pair(k, new UserJtiAccessed(k,v)));
+//        sourceEvents.print(Printed.toSysOut());
 
-        final KStream  joined = sourceEvents
-                .join(userTable, (k1,v1) -> k1,(v1,v2) -> new UserDataAgg(v1.userCode,v1.jtiAccess, v1.realm));
-//                .groupByKey()
-//                .windowedBy(SlidingWindows.ofTimeDifferenceWithNoGrace(Duration.ofSeconds(120)));
+        KTable<Windowed<UserJtiAccessed>,Long> agg = sourceEvents.groupByKey(Grouped.with(accessedSerder,accessedSerder))
+                .windowedBy(SlidingWindows.ofTimeDifferenceWithNoGrace(Duration.ofSeconds(WINDOWS_SECONDS)))
+                .count();
 
-       final KTable agg = joined.groupByKey(Grouped.with(Serdes.String(), Serdes.Long()))
-                .windowedBy(SlidingWindows.ofTimeDifferenceWithNoGrace(Duration.ofSeconds(10)))
-                .count(Materialized.with(Serdes.String(),Serdes.String()));
+//        agg.toStream().print(Printed.toSysOut());
+        agg.toStream().to(TOPIC_OUTPUT);
 
-        agg.toStream().print(Printed.toSysOut());
+//        agg.toStream().to(TOPIC_OUTPUT,Produced.with(accessedSerder,longSerde));
+//        agg.toStream().to(TOPIC_OUTPUT, Produced.with(accessedSerder,Serdes.Long()));
+
+//        agg.toStream().to(TOPIC_OUTPUT);
+//        agg.toStream().foreach((k,v)-> {
+//            System.out.println(k);
+//            System.out.println(v);
+//        });
+
+//        agg.toStream().to(TOPIC_OUTPUT, Produced..with(stringSerde,longSerde));
+//        agg.toStream().to(TOPIC_OUTPUT, Produced.as("processor1"));
+//                .print(Printed.toSysOut());
+
 
         //CacheUtils.putObject();
-
-        log.info("==================getTopologyUser()-End==================");
 
         return builder.build();
     }
