@@ -31,4 +31,10 @@ public class UserDataAgg {
         this.userCode = userCode;
         this.count = count;
     }
+
+    public UserDataAgg(String realm,String userCode, long count) {
+        this.realm = realm;
+        this.userCode = userCode;
+        this.count = count;
+    }
 }

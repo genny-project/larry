@@ -4,7 +4,7 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.Produces;
 
 import io.gada.message.UserDataAgg;
-import io.gada.message.processed.UserJtiAccessed;
+import io.gada.message.processed.UserLog;
 import io.gada.message.source.Event;
 import io.gada.message.UserData;
 //import life.genny.qwandaq.utils.CacheUtils;
@@ -25,11 +25,12 @@ public class TopologyProducer {
     private static final Logger log = Logger.getLogger(MethodHandles.lookup().lookupClass());
     public static final String USER_STORE = "UserStore";
 
-    private static final String TABLE_USER = "users";
-    private static final String TOPIC_EVENTS = "events";
-    private static final String TOPIC_DATA = "data";
-    private static final String TOPIC_OUTPUT = "users_agg";
-    private static final int WINDOWS_SECONDS = 10;
+    public static final String TABLE_USER = "users";
+    public static final String TOPIC_EVENTS = "events";
+    public static final String TOPIC_DATA = "data";
+//    private static final String TOPIC_OUTPUT = "users_agg";
+    public static final String TOPIC_OUTPUT = "users_agg";
+    public static final int WINDOWS_SECONDS = 10;
 
     @Produces
     public Topology getTopologyUser() {
@@ -40,43 +41,42 @@ public class TopologyProducer {
 
         final ObjectMapperSerde<Event> eventSerder = new ObjectMapperSerde<>(Event.class);
         final ObjectMapperSerde<UserData> userSerder = new ObjectMapperSerde<>(UserData.class);
-        final ObjectMapperSerde<UserJtiAccessed> accessedSerder = new ObjectMapperSerde<>(UserJtiAccessed.class);
+        final ObjectMapperSerde<UserLog> accessedSerder = new ObjectMapperSerde<>(UserLog.class);
         final ObjectMapperSerde<UserDataAgg> aggSerder = new ObjectMapperSerde<>(UserDataAgg.class);
 
         final GlobalKTable<String, UserData> userTable = builder.globalTable(TABLE_USER,
-                                                                    Consumed.with(Serdes.String(), userSerder));
+                                                                    Consumed.with(stringSerde, userSerder));
 
         final KStream<String, Event> userEvents = builder.stream(TOPIC_EVENTS,
-                                                                    Consumed.with(Serdes.String(), eventSerder));
+                                                                    Consumed.with(stringSerde, eventSerder));
 
-        final KStream<UserJtiAccessed, UserJtiAccessed> sourceEvents = userEvents
-                .map((k, v) -> KeyValue.pair(new UserJtiAccessed(k,v.getJtiByToken(),v.getRealm()),new UserJtiAccessed(k,v.getJtiByToken(),v.getRealm())))
+//        userEvents.print(Printed.toSysOut());
+
+        final KStream<UserLog, UserLog> sourceEvents = userEvents
+                .map((k, v) -> KeyValue.pair(new UserLog(k,v.getJtiByToken(),v.getRealm()),new UserLog(k,v.getJtiByToken(),v.getRealm())))
                 .filter((k, v)-> k != null);
 
-//        sourceEvents.print(Printed.toSysOut());
-
-        KTable<Windowed<UserJtiAccessed>,Long> agg = sourceEvents.groupByKey(Grouped.with(accessedSerder,accessedSerder))
+        KTable<Windowed<UserLog>,Long> agg = sourceEvents.groupByKey(Grouped.with(accessedSerder,accessedSerder))
                 .windowedBy(SlidingWindows.ofTimeDifferenceWithNoGrace(Duration.ofSeconds(WINDOWS_SECONDS)))
                 .count();
 
-//        agg.toStream().print(Printed.toSysOut());
-        agg.toStream().to(TOPIC_OUTPUT);
+        agg.toStream().print(Printed.toSysOut());
 
+//      agg.toStream().mapValues((k,v) -> new UserDataAgg(k.key().realm,k.key().realm,v))
+//                .to(TOPIC_OUTPUT);
+
+        agg.toStream().mapValues((k,v) -> new UserDataAgg(k.key().realm,k.key().userCode,v))
+                    .foreach( (k,v)-> System.out.println(k.key().realm + ":" + k.key().userCode));
+
+
+        /*
+//        agg.toStream().print(Printed.toSysOut());
+//        agg.toStream().map((k,v) -> KeyValue.pair(k,v)).to(TOPIC_OUTPUT);
 //        agg.toStream().to(TOPIC_OUTPUT,Produced.with(accessedSerder,longSerde));
 //        agg.toStream().to(TOPIC_OUTPUT, Produced.with(accessedSerder,Serdes.Long()));
 
-//        agg.toStream().to(TOPIC_OUTPUT);
-//        agg.toStream().foreach((k,v)-> {
-//            System.out.println(k);
-//            System.out.println(v);
-//        });
-
-//        agg.toStream().to(TOPIC_OUTPUT, Produced..with(stringSerde,longSerde));
-//        agg.toStream().to(TOPIC_OUTPUT, Produced.as("processor1"));
-//                .print(Printed.toSysOut());
-
-
         //CacheUtils.putObject();
+        */
 
         return builder.build();
     }

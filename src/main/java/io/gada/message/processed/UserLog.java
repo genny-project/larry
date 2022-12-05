@@ -1,31 +1,29 @@
 package io.gada.message.processed;
 
-import io.vertx.core.json.JsonObject;
 import org.jboss.logging.Logger;
-import org.jose4j.base64url.Base64;
 
 import java.lang.invoke.MethodHandles;
 
-public class UserJtiAccessed implements java.io.Serializable, Comparable<UserJtiAccessed>{
+public class UserLog implements java.io.Serializable, Comparable<UserLog>{
     private static final Logger LOGGER = Logger.getLogger(MethodHandles.lookup().lookupClass());
 
     public String userCode;
     public String jtiAccess;
     public String realm;
 
-    public UserJtiAccessed() {
+    public UserLog() {
     }
 
-    public UserJtiAccessed(String jtiAccess) {
+    public UserLog(String jtiAccess) {
         this.jtiAccess = jtiAccess;
     }
 
-    public UserJtiAccessed(String userCode, String jtiAccess) {
+    public UserLog(String userCode, String jtiAccess) {
         this.userCode = userCode;
         this.jtiAccess = jtiAccess;
     }
 
-    public UserJtiAccessed(String userCode, String jtiAccess,String realm) {
+    public UserLog(String userCode, String jtiAccess, String realm) {
         this.userCode = userCode;
         this.jtiAccess = jtiAccess;
         this.realm = realm;
@@ -33,7 +31,7 @@ public class UserJtiAccessed implements java.io.Serializable, Comparable<UserJti
 
 
     @Override
-    public int compareTo(UserJtiAccessed o) {
+    public int compareTo(UserLog o) {
         if(this.realm.equals(o.realm) && this.userCode.equals(o.userCode)
                 && this.jtiAccess.equals(o.jtiAccess)) {
             return 0;
