@@ -7,7 +7,6 @@ import javax.inject.Inject;
 import io.gada.message.UserDataAgg;
 import io.gada.message.processed.UserLog;
 import io.gada.message.source.Event;
-import io.gada.message.UserData;
 import life.genny.qwandaq.data.GennyCache;
 import life.genny.qwandaq.utils.CacheUtils;
 import org.apache.kafka.common.serialization.Serde;
@@ -15,7 +14,12 @@ import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.Topology;
-import org.apache.kafka.streams.kstream.*;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.SlidingWindows;
+import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.Grouped;
+import org.apache.kafka.streams.kstream.Windowed;
+import org.apache.kafka.streams.kstream.KTable;
 
 import io.quarkus.kafka.client.serialization.ObjectMapperSerde;
 import org.jboss.logging.Logger;
@@ -45,9 +49,9 @@ public class TopologyProducer {
         Serde<Long> longSerde = Serdes.Long();
 
         final ObjectMapperSerde<Event> eventSerder = new ObjectMapperSerde<>(Event.class);
-        final ObjectMapperSerde<UserData> userSerder = new ObjectMapperSerde<>(UserData.class);
         final ObjectMapperSerde<UserLog> accessedSerder = new ObjectMapperSerde<>(UserLog.class);
 
+//        final ObjectMapperSerde<UserData> userSerder = new ObjectMapperSerde<>(UserData.class);
 //        final ObjectMapperSerde<UserDataAgg> aggSerder = new ObjectMapperSerde<>(UserDataAgg.class);
 //        final GlobalKTable<String, UserData> userTable = builder.globalTable(TABLE_USER,
 //                                                                    Consumed.with(stringSerde, userSerder));
@@ -66,7 +70,7 @@ public class TopologyProducer {
         agg.toStream().mapValues((k,v) -> new UserDataAgg(k.key().realm,k.key().userCode,v))
                 .foreach( (k,v)-> {
                     log.info(k.key().realm + ":" + k.key().userCode + ":" + k.key().jtiAccess + ":" + k.key().timestamp + ":" + v.count);
-                    CacheUtils.putObject(k.key().realm,USER_STORE + ":" + k.key().userCode,v.count);
+                    CacheUtils.putObject(k.key().realm,USER_STORE + ":" + k.key().userCode,k.key());
                 });
 
         return builder.build();

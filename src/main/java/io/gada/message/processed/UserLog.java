@@ -33,14 +33,12 @@ public class UserLog implements java.io.Serializable, Comparable<UserLog>{
         this.timestamp = Instant.now().getEpochSecond();
     }
 
-
     @Override
     public int compareTo(UserLog o) {
         if(this.realm.equals(o.realm) && this.userCode.equals(o.userCode)
                 && this.jtiAccess.equals(o.jtiAccess)) {
             return 0;
         }
-        
         return -1;
     }
 }

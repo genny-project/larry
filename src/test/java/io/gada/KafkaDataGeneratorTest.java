@@ -1,6 +1,6 @@
 package io.gada;
 
-import io.gada.message.UserData;
+//import io.gada.message.UserData;
 //import io.gada.message.UserMessage;
 import io.quarkus.kafka.client.serialization.ObjectMapperSerializer;
 import io.quarkus.test.junit.QuarkusTest;
