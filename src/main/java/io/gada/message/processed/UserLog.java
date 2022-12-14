@@ -3,6 +3,7 @@ package io.gada.message.processed;
 import org.jboss.logging.Logger;
 
 import java.lang.invoke.MethodHandles;
+import java.time.Instant;
 
 public class UserLog implements java.io.Serializable, Comparable<UserLog>{
     private static final Logger LOGGER = Logger.getLogger(MethodHandles.lookup().lookupClass());
@@ -10,6 +11,8 @@ public class UserLog implements java.io.Serializable, Comparable<UserLog>{
     public String userCode;
     public String jtiAccess;
     public String realm;
+
+    public long timestamp;
 
     public UserLog() {
     }
@@ -27,6 +30,7 @@ public class UserLog implements java.io.Serializable, Comparable<UserLog>{
         this.userCode = userCode;
         this.jtiAccess = jtiAccess;
         this.realm = realm;
+        this.timestamp = Instant.now().getEpochSecond();
     }
 
 
