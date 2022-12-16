@@ -5,10 +5,11 @@ import javax.enterprise.inject.Produces;
 import javax.inject.Inject;
 
 import io.gada.message.UserDataAgg;
-import io.gada.message.processed.UserLog;
 import io.gada.message.source.Event;
 import life.genny.qwandaq.data.GennyCache;
+import life.genny.qwandaq.serialization.userstore.UserStore;
 import life.genny.qwandaq.utils.CacheUtils;
+import life.genny.qwandaq.utils.UserStoreUtils;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KeyValue;
@@ -22,6 +23,7 @@ import org.apache.kafka.streams.kstream.Windowed;
 import org.apache.kafka.streams.kstream.KTable;
 
 import io.quarkus.kafka.client.serialization.ObjectMapperSerde;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import java.lang.invoke.MethodHandles;
 import java.time.Duration;
@@ -35,7 +37,8 @@ public class TopologyProducer {
     public static final String TOPIC_EVENTS = "events";
     public static final String TOPIC_DATA = "data";
     public static final String TOPIC_OUTPUT = "users_agg";
-    public static final int WINDOWS_SECONDS = 10;
+    @ConfigProperty(name = "windows.seconds", defaultValue = "10")
+    public int windowsSeconds;
 
     @Inject
     GennyCache cache;
@@ -49,28 +52,35 @@ public class TopologyProducer {
         Serde<Long> longSerde = Serdes.Long();
 
         final ObjectMapperSerde<Event> eventSerder = new ObjectMapperSerde<>(Event.class);
-        final ObjectMapperSerde<UserLog> accessedSerder = new ObjectMapperSerde<>(UserLog.class);
+        final ObjectMapperSerde<UserStore> accessedSerder = new ObjectMapperSerde<>(UserStore.class);
 
+//        final ObjectMapperSerde<UserLog> accessedSerder = new ObjectMapperSerde<>(UserLog.class);
 //        final ObjectMapperSerde<UserData> userSerder = new ObjectMapperSerde<>(UserData.class);
 //        final ObjectMapperSerde<UserDataAgg> aggSerder = new ObjectMapperSerde<>(UserDataAgg.class);
 //        final GlobalKTable<String, UserData> userTable = builder.globalTable(TABLE_USER,
 //                                                                    Consumed.with(stringSerde, userSerder));
 
-        final KStream<String, Event> userEvents = builder.stream(TOPIC_EVENTS,
-                                                                    Consumed.with(stringSerde, eventSerder));
+        final KStream<String, Event> userEvents = builder.stream(TOPIC_EVENTS,Consumed.with(stringSerde, eventSerder));
 
-        final KStream<UserLog, UserLog> sourceEvents = userEvents
-                .map((k, v) -> KeyValue.pair(new UserLog(v.data.sourceCode,v.getJtiByToken(),v.getRealm()),new UserLog(k,v.getJtiByToken(),v.getRealm())))
-                .filter((k, v)-> k.userCode != null);
+        final KStream<UserStore, UserStore> sourceEvents = userEvents
+                .map((k, v) -> KeyValue.pair(new UserStore(v.getRealm(),v.data.sourceCode,v.getJtiByToken()),new UserStore(v.getRealm(),k,v.getJtiByToken())))
+                .filter((k, v)-> k.getUsercode() != null);
 
-        KTable<Windowed<UserLog>,Long> agg = sourceEvents.groupByKey(Grouped.with(accessedSerder,accessedSerder))
-                .windowedBy(SlidingWindows.ofTimeDifferenceWithNoGrace(Duration.ofSeconds(WINDOWS_SECONDS)))
+        KTable<Windowed<UserStore>,Long> agg = sourceEvents.groupByKey(Grouped.with(accessedSerder,accessedSerder))
+                .windowedBy(SlidingWindows.ofTimeDifferenceWithNoGrace(Duration.ofSeconds(windowsSeconds)))
                 .count();
 
-        agg.toStream().mapValues((k,v) -> new UserDataAgg(k.key().realm,k.key().userCode,v))
+        UserStoreUtils userStoreUtils = new UserStoreUtils();
+        agg.toStream().mapValues((k,v) -> new UserDataAgg(k.key().getRealm(),k.key().getUsercode(),v))
                 .foreach( (k,v)-> {
-                    log.info(k.key().realm + ":" + k.key().userCode + ":" + k.key().jtiAccess + ":" + k.key().timestamp + ":" + v.count);
-                    CacheUtils.putObject(k.key().realm,USER_STORE + ":" + k.key().userCode,k.key());
+                    try {
+                        log.info(k.key().getRealm() + ":" + k.key().getUsercode() + ":" + k.key().getJtiAccess() + ":" + k.key().getLastActive() + ":" + v.count);
+//                        CacheUtils.putObject(k.key().getRealm(), USER_STORE + ":" + k.key().getUsercode(), k.key());
+                        userStoreUtils.updateSerializableUserStore(k.key());
+                    }catch (Exception ex) {
+                        log.error(ex);
+                        ex.printStackTrace();
+                    }
                 });
 
         return builder.build();
